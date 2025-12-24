@@ -119,7 +119,21 @@ def get_translation_from_dict(word):
         'friend': "do'st",
         'family': 'oilа',
         'work': 'ish',
-        'time': 'vaqt'
+        'time': 'vaqt',
+        'computer': 'kompyuter',
+        'phone': 'telefon',
+        'money': 'pul',
+        'city': 'shahar',
+        'country': 'davlat',
+        'day': 'kun',
+        'night': 'tun',
+        'food': 'ovqat',
+        'air': 'havo',
+        'fire': 'olov',
+        'earth': 'yer',
+        'sun': 'quyosh',
+        'moon': 'oy',
+        'star': 'yulduz'
     }
     
     word_lower = word.lower().strip()
@@ -227,6 +241,44 @@ def save_user_vocabulary(user_id, df):
     except Exception as e:
         print(f"Foydalanuvchi faylini saqlashda xato: {e}")
 
+# Foydalanuvchi lug'atidan so'zni o'chirish
+def delete_user_word(user_id, word_to_delete):
+    """
+    Foydalanuvchi lug'atidan so'zni o'chirish (faqat o'chirilgan deb belgilash)
+    """
+    user_df = load_user_vocabulary(user_id)
+    
+    word_lower = word_to_delete.lower()
+    
+    # So'zni topish
+    mask = user_df['word'].str.lower() == word_lower
+    if mask.any():
+        user_df.loc[mask, 'deleted'] = True
+        save_user_vocabulary(user_id, user_df)
+        return True
+    return False
+
+# Asosiy lug'atdan so'z o'chirish
+def delete_word_from_vocabulary(word_to_delete):
+    """
+    Asosiy CSV fayldan so'zni o'chirish
+    """
+    df = load_vocabulary()
+    
+    if df.empty:
+        return False, "Lug'at bo'sh"
+    
+    word_lower = word_to_delete.lower()
+    mask = df['word'].str.lower() == word_lower
+    
+    if mask.any():
+        # So'zni o'chirish
+        df = df[~mask]
+        df.to_csv(CSV_FILE, index=False)
+        return True, f"'{word_to_delete}' so'zi asosiy lug'atdan o'chirildi"
+    else:
+        return False, "So'z topilmadi"
+
 # So'z qo'shish (asosiy lug'atga)
 def add_word_to_vocabulary(word, translation="", example=""):
     df = load_vocabulary()
@@ -287,7 +339,7 @@ def add_word_to_vocabulary(word, translation="", example=""):
     return True, "So'z muvaffaqiyatli qo'shildi"
 
 # Avtomatik so'z qo'shish (foydalanuvchi faqat so'zni kiritadi)
-async def auto_add_word(word, user_id):
+async def auto_add_word(word, user_id, context):
     """
     Foydalanuvchi so'z kiritganda avtomatik tarjima qilish va qo'shish
     """
@@ -311,20 +363,6 @@ async def auto_add_word(word, user_id):
         return True, f"✅ '{word}' so'zi avtomatik qo'shildi!\nTarjima: {translation}"
     else:
         return False, message
-
-# So'zni o'chirish (faqat foydalanuvchi uchun)
-def delete_word_for_user(user_id, word):
-    user_df = load_user_vocabulary(user_id)
-    
-    if user_df.empty:
-        return False
-    
-    word_lower = word.lower()
-    if word_lower in user_df['word'].str.lower().values:
-        user_df.loc[user_df['word'].str.lower() == word_lower, 'deleted'] = True
-        save_user_vocabulary(user_id, user_df)
-        return True
-    return False
 
 # /start komandasi
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -356,7 +394,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await update.message.reply_text(
+    # Foydalanuvchiga xabar yuborish
+    await update.effective_message.reply_text(
         "🇺🇿 Assalomu alaykum! Inglizcha so'zlar yodlash botiga xush kelibsiz!\n"
         "🇬🇧 Welcome to the English vocabulary learning bot!\n\n"
         "⚡ <b>Yangi imkoniyat:</b> Faqat inglizcha so'z yozing, bot avtomatik tarjima qilib qo'shadi!\n"
@@ -428,7 +467,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'auto_add_mode': True  # Default - avtomatik rejim
         }
     
-    text = update.message.text.strip()
+    text = update.effective_message.text.strip()
     
     # Agar foydalanuvchi so'z qo'shish rejimida bo'lsa
     if user_data[user_id].get('awaiting_word'):
@@ -439,9 +478,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 word = text.strip()
                 if word:
                     # So'zni avtomatik qo'shish
-                    await update.message.reply_text(f"🔍 '{word}' so'zini tarjima qilyapman...")
+                    await update.effective_message.reply_text(f"🔍 '{word}' so'zini tarjima qilyapman...")
                     
-                    success, message = await auto_add_word(word, user_id)
+                    success, message = await auto_add_word(word, user_id, context)
                     
                     if success:
                         user_data[user_id]['awaiting_word'] = False
@@ -452,10 +491,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         ]
                         reply_markup = InlineKeyboardMarkup(keyboard)
                         
-                        await update.message.reply_text(message, reply_markup=reply_markup)
+                        await update.effective_message.reply_text(message, reply_markup=reply_markup)
                     elif message == "tarjima_topilmadi":
                         # Tarjima topilmasa, foydalanuvchidan so'rash
-                        await update.message.reply_text(
+                        await update.effective_message.reply_text(
                             f"❌ '{word}' so'zining tarjimasini topa olmadim.\n\n"
                             f"Iltimos, tarjimasini ham kiriting:\n"
                             f"<code>{word}, tarjima, misol (ixtiyoriy)</code>",
@@ -463,9 +502,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                         user_data[user_id]['auto_add_mode'] = False
                     else:
-                        await update.message.reply_text(f"❌ {message}")
+                        await update.effective_message.reply_text(f"❌ {message}")
                 else:
-                    await update.message.reply_text("Iltimos, so'z kiriting.")
+                    await update.effective_message.reply_text("Iltimos, so'z kiriting.")
             else:
                 # Vergul bor - an'anaviy format
                 await handle_traditional_format(update, context, text, user_id)
@@ -487,7 +526,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await update.message.reply_text(
+            await update.effective_message.reply_text(
                 f"'{text}' so'zini qo'shmoqchimisiz?\n"
                 "Quyidagi usullardan birini tanlang:",
                 reply_markup=reply_markup
@@ -524,17 +563,17 @@ async def handle_traditional_format(update: Update, context: ContextTypes.DEFAUL
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await update.message.reply_text(response, reply_markup=reply_markup, parse_mode='HTML')
+            await update.effective_message.reply_text(response, reply_markup=reply_markup, parse_mode='HTML')
             
         else:
-            await update.message.reply_text(
+            await update.effective_message.reply_text(
                 "❌ Noto'g'ri format. Iltimos, formatga rioya qiling:\n"
                 "<code>so'z, tarjima, misol (ixtiyoriy)</code>\n\n"
                 "Misol: <code>apple, olma, I eat an apple</code>",
                 parse_mode='HTML'
             )
     except Exception as e:
-        await update.message.reply_text(
+        await update.effective_message.reply_text(
             f"❌ Xatolik yuz berdi: {str(e)}\n\n"
             "Iltimos, qayta urinib ko'ring."
         )
@@ -561,6 +600,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await start_command(update, context)
         elif data == 'stats':
             await show_stats(update, context)
+        elif data == 'next_word':
+            await handle_next_word(update, context)
+        elif data.startswith('delete_current_'):
+            word = data.replace('delete_current_', '')
+            await delete_word_handler(update, context, word)
+        elif data.startswith('delete_select_'):
+            word = data.replace('delete_select_', '')
+            await delete_word_handler(update, context, word)
+        elif data.startswith('answer_'):
+            await check_answer(update, context, data)
         else:
             await query.edit_message_text("Noma'lum buyruq. Iltimos, /start buyrug'ini yuboring.")
     except Exception as e:
@@ -570,7 +619,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Iltimos, /start buyrug'ini qayta yuboring."
         )
 
-# Qolgan funksiyalar (o'xshash, lekin qisqartirilgan)
+async def handle_next_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    if user_id not in user_data:
+        await query.edit_message_text("Xatolik! Iltimos, /start buyrug'ini qayta yuboring.")
+        return
+    
+    user_data[user_id]['current_word_index'] += 1
+    await show_next_word(update, context)
+
+# So'z yodlashni boshlash
 async def start_learning(update: Update, context: ContextTypes.DEFAULT_TYPE, count: int):
     query = update.callback_query
     await query.answer()
@@ -589,7 +649,10 @@ async def start_learning(update: Update, context: ContextTypes.DEFAULT_TYPE, cou
         return
     
     # O'chirilmagan so'zlarni hisoblash
-    available_words = user_df[~user_df['deleted']]
+    if 'deleted' in user_df.columns:
+        available_words = user_df[~user_df['deleted']]
+    else:
+        available_words = user_df
     
     if len(available_words) < count:
         await query.edit_message_text(
@@ -653,7 +716,7 @@ async def show_next_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await query.edit_message_text(text, reply_markup=reply_markup)
 
-# Qolgan funksiyalar (o'xshash, lekin soddalashtirilgan)
+# So'zni o'chirish menyusi
 async def delete_word_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -665,10 +728,18 @@ async def delete_word_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("Sizda hali so'zlar mavjud emas.")
         return
     
+    # Faqat o'chirilmagan so'zlarni ko'rsatish
+    if 'deleted' in user_df.columns:
+        available_words = user_df[~user_df['deleted']].head(15)
+    else:
+        available_words = user_df.head(15)
+    
+    if available_words.empty:
+        await query.edit_message_text("Sizda o'chirish uchun so'zlar mavjud emas.")
+        return
+    
     text = "🗑️ O'chirmoqchi bo'lgan so'zingizni tanlang:\n\n"
     
-    # So'zlarni guruhlarga ajratish
-    available_words = user_df[~user_df['deleted']].head(15)
     keyboard = []
     
     for _, row in available_words.iterrows():
@@ -682,21 +753,24 @@ async def delete_word_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(text, reply_markup=reply_markup)
 
-async def delete_word(update: Update, context: ContextTypes.DEFAULT_TYPE, word_to_delete):
+async def delete_word_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, word_to_delete):
     query = update.callback_query
     await query.answer()
     
     user_id = query.from_user.id
     
-    if delete_word_for_user(user_id, word_to_delete):
-        text = f"✅ '{word_to_delete}' so'zi o'chirildi!"
+    if delete_user_word(user_id, word_to_delete):
+        text = f"✅ '{word_to_delete}' so'zi sizning lug'atingizdan o'chirildi!"
         
-        keyboard = [[InlineKeyboardButton("🏠 Bosh menyu", callback_data='menu')]]
+        keyboard = [
+            [InlineKeyboardButton("🗑️ Yana so'z o'chirish", callback_data='delete_word')],
+            [InlineKeyboardButton("🏠 Bosh menyu", callback_data='menu')]
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(text, reply_markup=reply_markup)
     else:
-        await query.edit_message_text("❌ So'z topilmadi.")
+        await query.edit_message_text(f"❌ '{word_to_delete}' so'zi topilmadi.")
 
 async def show_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -710,28 +784,54 @@ async def show_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     total_words = len(user_df)
-    learned_words = len(user_df[user_df['learned'] == True]) if 'learned' in user_df.columns else 0
-    deleted_words = len(user_df[user_df['deleted'] == True]) if 'deleted' in user_df.columns else 0
+    
+    # 'learned' columni mavjudligini tekshirish
+    if 'learned' in user_df.columns:
+        learned_words = len(user_df[user_df['learned'] == True])
+    else:
+        learned_words = 0
+    
+    # 'deleted' columni mavjudligini tekshirish
+    if 'deleted' in user_df.columns:
+        deleted_words = len(user_df[user_df['deleted'] == True])
+        active_words = len(user_df[~user_df['deleted']])
+    else:
+        deleted_words = 0
+        active_words = total_words
     
     text = f"📊 Shaxsiy statistika:\n\n"
     text += f"📚 Jami so'zlar: {total_words} ta\n"
     text += f"✅ O'rgangan so'zlar: {learned_words} ta\n"
     text += f"🗑️ O'chirilgan so'zlar: {deleted_words} ta\n"
+    text += f"📝 Faol so'zlar: {active_words} ta\n"
     
     # Oxirgi 5 ta qo'shilgan so'zlar
     if 'added_date' in user_df.columns:
-        recent_words = user_df.sort_values('added_date', ascending=False).head(5)
-        if len(recent_words) > 0:
-            text += f"\n🆕 Oxirgi qo'shilgan so'zlar:\n"
-            for _, row in recent_words.iterrows():
-                text += f"• {row['word']} - {row['translation']}\n"
+        # O'chirilmagan so'zlarni olish
+        if 'deleted' in user_df.columns:
+            recent_df = user_df[~user_df['deleted']]
+        else:
+            recent_df = user_df
+            
+        if not recent_df.empty:
+            try:
+                # To'g'ri sort qilish
+                recent_df = recent_df.sort_values('added_date', ascending=False)
+                recent_words = recent_df.head(5)
+                
+                if len(recent_words) > 0:
+                    text += f"\n🆕 Oxirgi qo'shilgan so'zlar:\n"
+                    for _, row in recent_words.iterrows():
+                        text += f"• {row['word']} - {row['translation']}\n"
+            except Exception as e:
+                print(f"Statistika sort qilishda xato: {e}")
     
     keyboard = [[InlineKeyboardButton("🏠 Bosh menyu", callback_data='menu')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await query.edit_message_text(text, reply_markup=reply_markup)
 
-# Test funksiyalari (qisqartirilgan)
+# Test funksiyalari
 async def start_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -748,7 +848,17 @@ async def start_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("Test uchun kamida 4 ta so'z kerak.")
         return
     
-    test_words = user_df.sample(n=min(10, len(user_df))).to_dict('records')
+    # O'chirilmagan so'zlarni olish
+    if 'deleted' in user_df.columns:
+        available_words = user_df[~user_df['deleted']]
+    else:
+        available_words = user_df
+    
+    if len(available_words) < 4:
+        await query.edit_message_text("Test uchun kamida 4 ta faol so'z kerak.")
+        return
+    
+    test_words = available_words.sample(n=min(10, len(available_words))).to_dict('records')
     
     user_data[user_id]['test_mode'] = True
     user_data[user_id]['test_words'] = test_words
@@ -778,10 +888,20 @@ async def show_next_test_question(update: Update, context: ContextTypes.DEFAULT_
         
         # Qolgan 3 ta noto'g'ri variant
         user_df = load_user_vocabulary(user_id)
-        other_words = user_df[user_df['word'] != current_word['word']]
+        
+        # O'chirilmagan so'zlarni olish
+        if 'deleted' in user_df.columns:
+            other_words_df = user_df[~user_df['deleted']]
+        else:
+            other_words_df = user_df
+        
+        # Joriy so'zdan boshqa so'zlarni olish
+        other_words = other_words_df[other_words_df['word'] != current_word['word']]
+        
         if len(other_words) >= 3:
             wrong_options = other_words.sample(n=3)['translation'].tolist()
         else:
+            # Agar yetarli so'z bo'lmasa, dummy variantlar
             wrong_options = ["Noto'g'ri 1", "Noto'g'ri 2", "Noto'g'ri 3"]
         
         options.extend(wrong_options)
@@ -850,7 +970,7 @@ async def check_answer(update: Update, context: ContextTypes.DEFAULT_TYPE, data:
 
 # Asosiy funksiya
 def main():
-    # Bot tokenini o'rnating
+    # Bot tokenini o'rnating (o'zingizning tokeningizni qo'ying)
     TOKEN = "7823631570:AAHUvls6hRK8AtXrJHq_iTPupOi8U5q6L70"
     
     # Application yaratish
@@ -862,9 +982,11 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     # Botni ishga tushurish
-    print("⚡ Bot ishga tushdi...")
-    print("📝 Endi faqat so'z yozing (masalan: apple)")
+    print("=" * 50)
+    print("⚡ Bot ishga tushdi!")
+    print("📝 Endi faqat inglizcha so'z yozing (masalan: apple)")
     print("🤖 Bot avtomatik tarjima qilib CSV ga saqlaydi")
+    print("=" * 50)
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
