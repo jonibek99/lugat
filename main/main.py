@@ -3,10 +3,13 @@ import random
 import os
 import json
 import requests
+import os
+from dotenv import load_dotenv
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
-
+load_dotenv()
+TOKEN= os.getenv("token")
 # CSV fayl nomi
 CSV_FILE = 'vocabulary.csv'
 USER_WORDS_FILE = 'user_vocabulary_{}.json'
@@ -971,7 +974,7 @@ async def check_answer(update: Update, context: ContextTypes.DEFAULT_TYPE, data:
 # Asosiy funksiya
 def main():
     # Bot tokenini o'rnating (o'zingizning tokeningizni qo'ying)
-    TOKEN = "7823631570:AAHUvls6hRK8AtXrJHq_iTPupOi8U5q6L70"
+ 
     
     # Application yaratish
     application = Application.builder().token(TOKEN).build()
